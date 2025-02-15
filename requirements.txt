@@ -7,3 +7,4 @@ mediapipe==0.10.21
 sounddevice==0.5.1
 python_dotenv==1.0.1
 datetime==5.5
+multiprocessing==2.6.2.1
