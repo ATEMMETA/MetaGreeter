@@ -12,7 +12,7 @@ import json
 from discord.ext import commands
 from os import environ
 from dotenv import load_dotenv
-from dependencies.Facedet import FaceDet  # Make sure this import is correct
+from dependencies.Facedet import FaceDet
 
 colorama.init()
 
@@ -25,8 +25,8 @@ try:
     IMAGES_PATH = config["images_path"]
     TEMP_PATH = config["temp_path"]
 except FileNotFoundError:
-    print("Error: config.json not found.  Create it with 'token', 'images_path', and 'temp_path'.")
-    sys.exit(1)  # Exit if config file is missing
+    print("Error: config.json not found. Create it with 'token', 'images_path', and 'temp_path'.")
+    sys.exit(1)
 except json.JSONDecodeError:
     print("Error: Invalid JSON in config.json")
     sys.exit(1)
@@ -34,10 +34,9 @@ except KeyError as e:
     print(f"Error: Missing key {e} in config.json")
     sys.exit(1)
 
-
 # Path setup
 images_path = os.path.join(os.path.dirname(__file__), IMAGES_PATH)
-temp_path = os.path.join(TEMP_PATH, "temp_images")
+temp_path = os.path.join(os.path.dirname(__file__), TEMP_PATH, "temp_images")
 
 # Logger setup
 logger = logging.getLogger('logger')
@@ -50,10 +49,15 @@ def exc_handler(exctype, value, tb):
 sys.excepthook = exc_handler
 
 # Bot setup
-intents = discord.Intents.default()  # Use default intents, then enable what you need
-intents.message_content = True # Needed for reading message content
+intents = discord.Intents.default()
+intents.message_content = True
 bot = commands.Bot(command_prefix='.', intents=intents)
 bot.remove_command('help')
+
+# Face Detection setup
+facedet = FaceDet(os.path.dirname(__file__))
+
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 @bot.event
 async def on_ready():
@@ -74,8 +78,6 @@ async def on_message(message):
         logger.exception(f"Error in on_message: {e}")
         await message.channel.send("An error occurred. Please try again later.")
 
-ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png")
-
 @bot.command()
 async def addface(ctx, name):
     if not name.isalnum() or "_" in name:
@@ -93,36 +95,42 @@ async def addface(ctx, name):
         return
 
     attachment = ctx.message.attachments[0]
-    if not attachment.filename.lower().endswith(ALLOWED_EXTENSIONS):
+    if not any(attachment.filename.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
         await ctx.send("Invalid file type. Only .jpg, .jpeg, and .png are allowed.")
         return
+
+    os.makedirs(temp_path, exist_ok=True)  # Create directory beforehand
 
     try:
         img_data = requests.get(attachment.url).content
         temp_file_path = os.path.join(temp_path, f"ud_{name}.jpg")
 
-        os.makedirs(temp_path, exist_ok=True) # Create the temp directory if it doesn't exist
-
         with open(temp_file_path, "wb") as handler:
             handler.write(img_data)
 
-        facedet = FaceDet(os.path.dirname(__file__))  # Initialize facedet here
         detector = facedet.findface(temp_file_path, name)
 
         if detector:
             await ctx.send(f"**{name}** added to database.", file=discord.File(detector[2]))
-            try: os.remove(detector[2]) # Remove the face detection output image
-            except Exception as e: logger.error(f"Error removing detector output image: {e}")
+            try:
+                os.remove(detector[2])
+            except Exception as e:
+                logger.error(f"Error removing detector output image: {e}")
         else:
             await ctx.send(f"**No face detected in image**.")
 
-        os.remove(temp_file_path)  # Remove the temporary uploaded image
+        os.remove(temp_file_path)  # Clean up temporary file
+    except requests.exceptions.RequestException as e:  # Catch requests errors
+        logger.exception(f"Error downloading image: {e}")
+        await ctx.send("Error downloading image from attachment.")
+        return  # Stop processing
     except Exception as e:
         logger.exception(f"Error in addface: {e}")
         await ctx.send(f"An error occurred: {e}")
-        try: os.remove(temp_file_path) # Attempt cleanup
-        except: pass
-
+        try:
+            os.remove(temp_file_path)
+        except:
+            pass
 
 @bot.command()
 async def delface(ctx, name):
@@ -140,11 +148,9 @@ async def delface(ctx, name):
                     logger.exception(f"Error deleting file: {e}")
                     await ctx.send(f"Error deleting **{name}**. Please try again.")
                     return
-        return  # If it gets here, the name was found but no matching file was deleted
-
-    await ctx.send(f"**{name}** is not in the database.")
-
-
+        await ctx.send(f"**{name}** was found but no matching file was deleted.")
+    else:
+        await ctx.send(f"**{name}** is not in the database.")
 
 @bot.command()
 async def listfaces(ctx):
@@ -155,15 +161,28 @@ async def listfaces(ctx):
         return
 
     message = ", ".join(faces)
-    images = [discord.File(image) for face in faces for image in glob.glob(os.path.join(images_path, f"{face}.*")) if os.path.splitext(image)[1].lower() in ALLOWED_EXTENSIONS]
+    if len(faces) <= 10:  # Define a limit (e.g., 10)
+        images = []
+        for face in faces:
+            for ext in ALLOWED_EXTENSIONS:
+                image_path = os.path.join(images_path, f"{face}{ext}")
+                if os.path.exists(image_path):
+                    try:
+                        images.append(discord.File(image_path))
+                    except Exception as e:  # Catch potential errors
+                        logger.exception(f"Error creating discord.File: {e}")
+                        await ctx.send(f"Error displaying image for {face}.")
+                        continue  # Skip to the next image
+        try:
+            if len(faces) > 1:
+                await ctx.send(message + " (in order)", files=images)
+            else:
+                await ctx.send(message, files=images)
+        except discord.HTTPException:
+            await ctx.send(message)  # Send message only if files are too large
+    else:
+        await ctx.send(message)  # Just send the message if there are too many faces
 
-    try:
-        if len(faces) > 1:
-            await ctx.send(message + " (in order)", files=images)
-        else:
-            await ctx.send(message, files=images)
-    except discord.HTTPException:
-        await ctx.send(message)
 
 @bot.command()
 async def help(ctx):
@@ -174,4 +193,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
