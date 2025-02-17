@@ -12,6 +12,35 @@ from dependencies.Facerec import Facerec
 colorama.init()
 
 # Setup logging
+
+# Load configuration (make sure config.json is in the same directory as main.py)
+config_path = os.path.join(os.path.dirname(__file__), "config.json")
+try:
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    IMAGES_PATH = config["images_path"]
+    TEMP_PATH = config["temp_path"]
+except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+    print(f"Error loading config.json: {e}")
+    exit(1)
+
+# Create images directory (at the project root)
+images_path = os.path.join(os.path.dirname(__file__), "..", IMAGES_PATH)
+os.makedirs(images_path, exist_ok=True)
+
+# Create temp_images directory (at the project root)
+temp_path = os.path.join(os.path.dirname(__file__), "..", TEMP_PATH)
+os.makedirs(temp_path, exist_ok=True)
+
+@bot.command()
+async def addface(ctx, name):
+    # ... other code ...
+    temp_file_path = os.path.join(temp_path, f"ud_{name}.jpg")  # Correct path
+    # ...
+
+
+
+# Setup logging
 log_path = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(log_path, exist_ok=True)
 logger = logging.getLogger('logger')
