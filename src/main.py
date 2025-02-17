@@ -73,8 +73,49 @@ def speak(text):
 # Discord bot command
 @bot.command()
 async def addface(ctx, name):
-    temp_file_path = os.path.join(temp_path, f"ud_{name}.jpg")
-    # ... other code for adding face
+    if not name.isalnum() or "_" in name:
+        await ctx.send("Invalid name. Please use alphanumeric characters and no underscores.")
+        return
+
+    faces = [os.path.splitext(os.path.basename(face))[0] for ext in ALLOWED_EXTENSIONS for face in glob.glob(os.path.join(images_path, f"*{ext}"))]
+
+    if name in faces:
+        await ctx.send(f"**{name}** is already in the database.")
+        return
+
+    if not ctx.message.attachments:
+        await ctx.send("No **image** attached to command.")
+        return
+
+    attachment = ctx.message.attachments[0]
+    if not attachment.filename.lower().endswith(ALLOWED_EXTENSIONS):
+        await ctx.send("Invalid file type. Only .jpg, .jpeg, and .png are allowed.")
+        return
+
+    try:
+        img_data = requests.get(attachment.url).content
+        temp_file_path = os.path.join(temp_path, f"ud_{name}.jpg")
+        with open(temp_file_path, "wb") as handler:
+            handler.write(img_data)
+
+        fr = Facerec()  # Initialize Facerec here or earlier
+        fr.load_encoding_images(images_path)
+        detector = fr.findface(temp_file_path, name)  # Use your face detection function
+
+        if detector:
+            await ctx.send(f"**{name}** added to database.", file=discord.File(detector[2]))
+            os.remove(detector[2])  # Remove the processed image
+        else:
+            await ctx.send(f"**No face detected in image**.")
+
+        os.remove(temp_file_path)  # Remove the temporary uploaded image
+    except Exception as e:
+        logger.exception(f"Error in addface: {e}")
+        await ctx.send(f"An error occurred: {e}")
+        try:
+            os.remove(temp_file_path)  # Attempt cleanup
+        except:
+            pass
 
 # Main loop
 if __name__ == '__main__':
