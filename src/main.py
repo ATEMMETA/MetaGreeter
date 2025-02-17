@@ -170,6 +170,28 @@ with pyvirtualcam.Camera(...) as cam:
 
             # ... (your motion detection and face recognition code)
 
+        with pyvirtualcam.Camera(...) as cam:  # Camera context manager
+    face_c = 0
+    face = False
+    face_det = []
+    while True:  # Motion detection and face recognition loop
+        try:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            # ... (motion detection, face recognition, other logic)
+
+        except Exception as e:
+            # ... (error handling)
+            break  # Or other appropriate action
+
+# Camera released and window closed automatically here (outside the with)
+cap.release()
+cv2.destroyAllWindows()
+bot.run(os.getenv('DISCORD_TOKEN'))  # Run the bot
+
+
         except Exception as e:
             logger.exception(f"Error in main loop: {e}")  # Log the error with traceback
             print(f"An error occurred: {e}")  # Print a message (optional)
