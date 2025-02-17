@@ -8,6 +8,8 @@ import sys
 import traceback
 import json
 import colorama
+import glob
+import requests
 from cvzone.PoseModule import PoseDetector
 from pyvirtualcam import PixelFormat
 from datetime import datetime
