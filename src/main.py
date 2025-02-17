@@ -145,7 +145,39 @@ if __name__ == '__main__':
             if not ret:  # Check if frame reading was successful
                 print("Error: Could not read frame.")
                 break
+                
+with pyvirtualcam.Camera(...) as cam:
+    face_c = 0  # Initialize face count
+    face = False # Initialize face detected flag
+    face_det = [] # Initialize list to store detected faces
+    while True
 
+          
+with pyvirtualcam.Camera(...) as cam:
+    while True:
+        try:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
+
+            # ... (your motion detection and face recognition code)
+
+        except Exception as e:
+            logger.exception(f"Error in main loop: {e}")  # Log the error with traceback
+            print(f"An error occurred: {e}")  # Print a message (optional)
+            # You might want to break the loop here or take other actions
+            # depending on the nature of the error.
+            break # Example: Exit the loop on error
+
+        
+        except Exception as e:
+            logger.exception(f"Error in main loop: {e}")  # Log the error with traceback
+            print(f"An error occurred: {e}")  # Print a message (optional)
+            # You might want to break the loop here or take other actions
+            # depending on the nature of the error.
+            break # Example: Exit the loop on error
+            
             # Motion detection
             # ... (your motion detection logic here)
 
