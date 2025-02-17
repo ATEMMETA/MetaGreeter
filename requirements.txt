@@ -7,7 +7,6 @@ mediapipe
 sounddevice
 python_dotenv
 datetime
-multiprocessing
 logging
 opencv-python
 face_recognition
