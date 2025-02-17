@@ -79,6 +79,11 @@ async def addface(ctx, name):
         await ctx.send("Invalid name. Please use alphanumeric characters and no underscores.")
         return
 
+
+    intents = discord.Intents.default()  # Or specify the intents you need
+intents.message_content = True  # If you need to read message content
+bot = commands.Bot(command_prefix='!', intents=intents) # Your prefix can be anything
+
     faces = [os.path.splitext(os.path.basename(face))[0] for ext in ALLOWED_EXTENSIONS for face in glob.glob(os.path.join(images_path, f"*{ext}"))]
 
     if name in faces:
