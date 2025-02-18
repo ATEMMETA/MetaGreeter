@@ -7,7 +7,6 @@ mediapipe
 sounddevice
 python_dotenv
 datetime
-logging
 opencv-python
 face_recognition
 discord_webhook
