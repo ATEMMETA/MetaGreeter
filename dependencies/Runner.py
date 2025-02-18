@@ -1,64 +1,68 @@
-import os, subprocess, colorama
+import os
+import subprocess
+import colorama
 from datetime import datetime
 
 class Runner:
-    def __init__(self, cd, debug) -> None:
-        self.logfile = os.path.join(cd, r"logs\stream.log")
-        os.makedirs("logs", exist_ok=True)
+    def __init__(self, output_dir, debug=False):  # Explicitly set debug default to False
+        self.log_file = os.path.join(output_dir, "logs", "stream.log")  # Consistent naming
+        os.makedirs(os.path.join(output_dir, "logs"), exist_ok=True)  # Include output_dir
         self.debug = debug
-        self.types = ["   DISCORD BOT   ", "    WEBSERVER    ", " SECURITY SYSTEM "]
+        self.types = ["DISCORD BOT", "WEBSERVER", "SECURITY SYSTEM"]  # Removed extra spaces
         colorama.init()
-        self.log(f"{'-'*50}| STARTED |{'-'*50}\n", started=True)
+        self.log(f"{'-'*50} STARTED {'-'*50}\n", started=True) #Consistent spacing
 
     def log(self, msg: str, started: bool = False):
-        now = datetime.now()
-        c_time = now.strftime("%d-%m-%Y_%H-%M-%S")
+        timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")  # More descriptive name
         if not started:
-            msg = f"[{c_time}] {msg}"
-        with open(self.logfile, "a+") as logger:
+            msg = f"[{timestamp}] {msg}"
+        with open(self.log_file, "a") as logger:  # Open in append mode ("a")
             logger.write(msg)
-    def _print(self, type: str, msg: str, e_type: str = None):
-        if type == self.types[0]:
-            color = colorama.Fore.CYAN
-        elif type == self.types[1]:
-            color = colorama.Fore.YELLOW
-        elif type == self.types[2]:
-            color = colorama.Fore.MAGENTA
-        if e_type == "error":
-            print(f"{colorama.Fore.LIGHTBLACK_EX}|{color}{type}{colorama.Fore.LIGHTBLACK_EX}|  {colorama.Fore.GREEN}->{colorama.Fore.RESET}  {colorama.Fore.RED}ERROR: {msg} {colorama.Fore.YELLOW}(check logs)\n{colorama.Fore.LIGHTRED_EX}", end='')
-            msg = f"ERROR: {msg} (check logs)\n"
-        elif e_type == "info":
-            print(f"{colorama.Fore.LIGHTBLACK_EX}|{color}{type}{colorama.Fore.LIGHTBLACK_EX}|  {colorama.Fore.GREEN}->{colorama.Fore.RESET}  {colorama.Fore.YELLOW}{msg}", end='')
-        elif e_type == "warning":
-            print(f"{colorama.Fore.LIGHTBLACK_EX}|{color}{type}{colorama.Fore.LIGHTBLACK_EX}|  {colorama.Fore.GREEN}->{colorama.Fore.RESET}  {colorama.Fore.LIGHTRED_EX}{msg}", end='')
-        else:
-            print(f"{colorama.Fore.LIGHTBLACK_EX}|{color}{type}{colorama.Fore.LIGHTBLACK_EX}|  {colorama.Fore.GREEN}->{colorama.Fore.RESET}  {msg}", end='')
-        self.log(f"|{type}|  ->  {msg}")
 
-    def exec(self, cmd, type = ("bot", "web", "sec")):
-        if type == "web" or self.debug:
-            err_out = subprocess.STDOUT
-        else:
-            err_out = subprocess.PIPE
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=err_out, bufsize=1, universal_newlines=True) as p:
-            for line in p.stdout:
-                error = None
-                if line.startswith("INFO:") or line.startswith("W0000"):
-                    error = "info"
-                elif line.startswith("WARNING:") or line.startswith("   WARNING:"):
-                    error = "warning"
-                if type == "bot":
-                    self._print(self.types[0], line, error)
-                elif type == "web":
-                    self._print(self.types[1], line, error)
-                elif type == "sec":
-                    self._print(self.types[2], line, error)
+    def _print(self, service_type: str, msg: str, level: str = None):  # More descriptive names
+        color = {  # Use a dictionary for cleaner color mapping
+            self.types[0]: colorama.Fore.CYAN,
+            self.types[1]: colorama.Fore.YELLOW,
+            self.types[2]: colorama.Fore.MAGENTA,
+        }.get(service_type) #Handle the case where the service_type is not in the dictionary
 
-        if p.returncode != 0:
-            error = "error"
-            if type == "bot":
-                self._print(self.types[0], f"{str(p.returncode)} {p.args}", error)
-            elif type == "web":
-                self._print(self.types[1], f"{str(p.returncode)} {p.args}", error)
-            elif type == "sec":
-                self._print(self.types[2], f"{str(p.returncode)} {p.args}", error)
+        level_color = {  # Map levels to colors
+            "error": colorama.Fore.RED,
+            "info": colorama.Fore.GREEN,
+            "warning": colorama.Fore.YELLOW,
+        }.get(level)
+
+        prefix = f"{colorama.Fore.LIGHTBLACK_EX}|{color}{service_type}{colorama.Fore.LIGHTBLACK_EX}|  {colorama.Fore.GREEN}->{colorama.Fore.RESET}  "
+        level_str = f"{level_color}{level.upper()}: " if level else "" # Add level string if level exists
+        print(f"{prefix}{level_str}{msg}{colorama.Fore.RESET}\n", end='') #Reset color at the end
+
+        log_msg = f"|{service_type}|  ->  {level_str}{msg}" #Include level information in the log
+        self.log(log_msg)
+
+    def exec(self, cmd, service_type: str = "bot"):  # Default to bot, type hint
+        err_stream = subprocess.STDOUT if service_type == "web" or self.debug else subprocess.PIPE # More descriptive name
+        try:
+            with subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=err_stream, bufsize=1, universal_newlines=True
+            ) as process:
+                for line in process.stdout:
+                    level = None
+                    if any(prefix in line for prefix in ["INFO:", "W0000"]):  # More flexible prefix matching
+                        level = "info"
+                    elif any(prefix in line for prefix in ["WARNING:", "   WARNING:"]):
+                        level = "warning"
+
+                    self._print(self.types[0] if service_type == "bot" else self.types[1] if service_type == "web" else self.types[2], line.strip(), level) #Strip newline characters from the line
+
+                return_code = process.returncode #Get the return code after the loop has finished
+
+            if return_code != 0:
+                self._print(self.types[0] if service_type == "bot" else self.types[1] if service_type == "web" else self.types[2], f"{return_code} {cmd}", "error")  # Log the command itself
+            return return_code #Return the return code
+
+        except FileNotFoundError: #Handle FileNotFoundError
+            self._print(self.types[0] if service_type == "bot" else self.types[1] if service_type == "web" else self.types[2], f"Command not found: {cmd}", "error")
+            return 1 #Return an error code
+        except Exception as e: # Catch other potential errors
+            self._print(self.types[0] if service_type == "bot" else self.types[1] if service_type == "web" else self.types[2], f"An error occurred: {e}", "error")
+            return 1 #Return an error code
